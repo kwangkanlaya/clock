@@ -3,367 +3,546 @@
 
 import { useEffect, useState } from "react";
 
-type WeatherData = {
-  temperature: number;
-  humidity: number;
-  feelsLike: number;
-  windSpeed: number;
-  code: number;
+type Alarm = {
+  id: number;
+  time: string;
+  label: string;
+  enabled: boolean;
+  days: string[];
 };
 
-const weatherDescription = (code: number) => {
-  if (code === 0) return { text: "ท้องฟ้าแจ่มใส", icon: "☀️" };
-  if ([1, 2].includes(code)) return { text: "มีเมฆบางส่วน", icon: "🌤️" };
-  if (code === 3) return { text: "มีเมฆมาก", icon: "☁️" };
-  if ([45, 48].includes(code)) return { text: "มีหมอก", icon: "🌫️" };
-  if ([51, 53, 55, 56, 57].includes(code)) return { text: "ฝนละออง", icon: "🌦️" };
-  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code))
-    return { text: "ฝนตก", icon: "🌧️" };
-  if ([71, 73, 75, 77, 85, 86].includes(code))
-    return { text: "หิมะตก", icon: "❄️" };
-  if ([95, 96, 99].includes(code))
-    return { text: "พายุฝนฟ้าคะนอง", icon: "⛈️" };
-  return { text: "ไม่ทราบสภาพอากาศ", icon: "🌤️" };
-};
+type Tab = "world" | "alarm" | "stopwatch" | "timer";
+
+const dayNames = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
 
 export default function Home() {
-  const [time, setTime] = useState(new Date());
-  const [activeTab, setActiveTab] = useState("home");
-  const [darkMode, setDarkMode] = useState(true);
-  const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [weatherLoading, setWeatherLoading] = useState(false);
-  const [weatherError, setWeatherError] = useState("");
-  const [locationName, setLocationName] = useState("ตำแหน่งปัจจุบัน");
+  const [tab, setTab] = useState<Tab>("alarm");
+  const [now, setNow] = useState(new Date());
+  const [alarms, setAlarms] = useState<Alarm[]>([
+    {
+      id: 1,
+      time: "05:45",
+      label: "ตื่นนอน",
+      enabled: true,
+      days: ["จ.", "อ.", "พ.", "พฤ.", "ศ."],
+    },
+    {
+      id: 2,
+      time: "05:50",
+      label: "เตือนสำรอง",
+      enabled: false,
+      days: ["จ.", "อ.", "พ.", "พฤ.", "ศ."],
+    },
+  ]);
+
+  const [editing, setEditing] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newTime, setNewTime] = useState("06:00");
+  const [newLabel, setNewLabel] = useState("");
+  const [newDays, setNewDays] = useState<string[]>(dayNames);
+
+  const [stopwatch, setStopwatch] = useState(0);
+  const [stopwatchRunning, setStopwatchRunning] = useState(false);
+
+  const [timerInput, setTimerInput] = useState(5);
+  const [timerSeconds, setTimerSeconds] = useState(300);
+  const [timerRunning, setTimerRunning] = useState(false);
 
   useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    const interval = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(interval);
   }, []);
 
-  const thaiDate = new Intl.DateTimeFormat("th-TH", {
+  useEffect(() => {
+    if (!stopwatchRunning) return;
+    const interval = setInterval(() => {
+      setStopwatch((value) => value + 10);
+    }, 10);
+    return () => clearInterval(interval);
+  }, [stopwatchRunning]);
+
+  useEffect(() => {
+    if (!timerRunning) return;
+    const interval = setInterval(() => {
+      setTimerSeconds((value) => {
+        if (value <= 1) {
+          setTimerRunning(false);
+          return 0;
+        }
+        return value - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timerRunning]);
+
+  const timeNow = new Intl.DateTimeFormat("th-TH", {
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(now);
+
+  const dateNow = new Intl.DateTimeFormat("th-TH", {
     timeZone: "Asia/Bangkok",
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
-  }).format(time);
+  }).format(now);
 
-  const currentTime = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Bangkok",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).format(time);
-
-  const fetchWeather = () => {
-    if (!navigator.geolocation) {
-      setWeatherError("อุปกรณ์นี้ไม่รองรับการระบุตำแหน่ง");
-      return;
-    }
-
-    setWeatherLoading(true);
-    setWeatherError("");
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const { latitude, longitude } = position.coords;
-
-          const response = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=Asia%2FBangkok`
-          );
-
-          if (!response.ok) throw new Error("ไม่สามารถโหลดข้อมูลอากาศได้");
-
-          const data = await response.json();
-          const current = data.current;
-
-          setWeather({
-            temperature: current.temperature_2m,
-            humidity: current.relative_humidity_2m,
-            feelsLike: current.apparent_temperature,
-            windSpeed: current.wind_speed_10m,
-            code: current.weather_code,
-          });
-
-          setLocationName("ตำแหน่งที่คุณอนุญาต");
-        } catch {
-          setWeatherError("ไม่สามารถเชื่อมต่อข้อมูลสภาพอากาศได้");
-        } finally {
-          setWeatherLoading(false);
-        }
-      },
-      () => {
-        setWeatherError("กรุณาอนุญาตให้เว็บไซต์เข้าถึงตำแหน่งของคุณ");
-        setWeatherLoading(false);
-      },
-      { enableHighAccuracy: false, timeout: 10000 }
+  const toggleAlarm = (id: number) => {
+    setAlarms((items) =>
+      items.map((alarm) =>
+        alarm.id === id
+          ? { ...alarm, enabled: !alarm.enabled }
+          : alarm
+      )
     );
   };
 
-  useEffect(() => {
-    fetchWeather();
-  }, []);
+  const addAlarm = () => {
+    if (!newTime) return;
 
-  const weatherInfo = weather
-    ? weatherDescription(weather.code)
-    : null;
+    setAlarms((items) => [
+      ...items,
+      {
+        id: Date.now(),
+        time: newTime,
+        label: newLabel.trim() || "นาฬิกาปลุก",
+        enabled: true,
+        days: newDays,
+      },
+    ]);
+
+    setNewTime("06:00");
+    setNewLabel("");
+    setNewDays(dayNames);
+    setShowAdd(false);
+  };
+
+  const deleteAlarm = (id: number) => {
+    setAlarms((items) => items.filter((alarm) => alarm.id !== id));
+  };
+
+  const toggleDay = (day: string) => {
+    setNewDays((days) =>
+      days.includes(day)
+        ? days.filter((item) => item !== day)
+        : [...days, day]
+    );
+  };
+
+  const formatStopwatch = (ms: number) => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    const centiseconds = Math.floor((ms % 1000) / 10);
+
+    return `${String(minutes).padStart(2, "0")}:${String(
+      seconds
+    ).padStart(2, "0")}.${String(centiseconds).padStart(2, "0")}`;
+  };
+
+  const formatTimer = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(
+      2,
+      "0"
+    )}:${String(s).padStart(2, "0")}`;
+  };
+
+  const getCityTime = (zone: string) =>
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: zone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(now);
 
   return (
-    <main className={`app ${darkMode ? "dark" : "light"}`}>
-      <div className="app-container">
+    <main className="phone-app">
+      <div className="app-content">
+        {/* STATUS BAR */}
+        <div className="status-bar">
+          <span>{timeNow}</span>
+          <div className="status-icons">
+            <span>● ● ●</span>
+            <span>5G</span>
+            <span className="battery">81%</span>
+          </div>
+        </div>
 
         {/* HEADER */}
-        <header className="header">
+        <header className="top-header">
           <div className="brand">
-            <div className="brand-logo">T</div>
+            <div className="brand-icon">T</div>
             <div>
-              <h2>TIMELESS</h2>
-              <p>YOUR DAILY COMPANION</p>
+              <div className="brand-name">TIMELESS</div>
+              <div className="brand-subtitle">YOUR DAILY COMPANION</div>
             </div>
           </div>
-
-          <button
-            className="theme-button"
-            onClick={() => setDarkMode(!darkMode)}
-            aria-label="เปลี่ยนธีม"
-          >
-            {darkMode ? "☼" : "☾"}
-          </button>
+          <div className="header-date">
+            {dateNow}
+          </div>
         </header>
 
-        {/* WELCOME */}
-        <section className="welcome">
-          <span className="eyebrow">WELCOME BACK</span>
-          <h1>
-            ช่วงเวลาดี ๆ <span>เริ่มต้นที่นี่</span>
-          </h1>
-          <p>จัดการทุกช่วงเวลาของคุณให้ง่ายและมีสไตล์</p>
-        </section>
-
-        {/* HOME */}
-        {activeTab === "home" && (
-          <>
-            <section className="clock-card">
-              <div className="card-top">
-                <span>เวลาปัจจุบัน</span>
-                <span className="live">
-                  <i /> LIVE
-                </span>
+        {/* ALARM PAGE */}
+        {tab === "alarm" && (
+          <section className="screen">
+            <div className="page-toolbar">
+              <div>
+                <span className="eyebrow">YOUR DAILY ROUTINE</span>
+                <h1>นาฬิกาปลุก</h1>
               </div>
 
-              <div className="clock-content">
-                <div className="clock-time">{currentTime}</div>
-                <div className="clock-date">{thaiDate}</div>
-                <div className="clock-decoration">✦</div>
-              </div>
-
-              <div className="card-bottom">
-                <span>THAILAND · GMT+7</span>
-                <span>✦ TIME IS PRECIOUS</span>
-              </div>
-            </section>
-
-            <section className="weather-section">
-              <div className="section-heading">
-                <div>
-                  <span className="eyebrow">WEATHER TODAY</span>
-                  <h2>สภาพอากาศ</h2>
-                </div>
-                <button className="refresh-button" onClick={fetchWeather}>
-                  ↻
+              <div className="toolbar-actions">
+                <button
+                  className={`edit-button ${editing ? "selected" : ""}`}
+                  onClick={() => setEditing(!editing)}
+                >
+                  {editing ? "เสร็จสิ้น" : "แก้ไข"}
+                </button>
+                <button
+                  className="add-button"
+                  onClick={() => setShowAdd(true)}
+                  aria-label="เพิ่มนาฬิกาปลุก"
+                >
+                  +
                 </button>
               </div>
+            </div>
 
-              <div className="weather-card">
-                {weatherLoading ? (
-                  <div className="weather-message">
-                    กำลังโหลดข้อมูลสภาพอากาศ...
-                  </div>
-                ) : weather ? (
-                  <div className="weather-overview">
-                    <div className="weather-main">
-                      <span className="weather-icon">{weatherInfo?.icon}</span>
-                      <div>
-                        <div className="temperature">
-                          {Math.round(weather.temperature)}°
-                        </div>
-                        <p>{weatherInfo?.text}</p>
-                        <small>{locationName}</small>
-                      </div>
-                    </div>
-                    <div className="weather-details">
-                      <div>
-                        <span>💧</span>
-                        <small>ความชื้น</small>
-                        <strong>{weather.humidity}%</strong>
-                      </div>
-                      <div>
-                        <span>🌡️</span>
-                        <small>รู้สึกเหมือน</small>
-                        <strong>{Math.round(weather.feelsLike)}°C</strong>
-                      </div>
-                      <div>
-                        <span>💨</span>
-                        <small>ความเร็วลม</small>
-                        <strong>{weather.windSpeed} km/h</strong>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="weather-message">
-                    <span className="weather-icon">🌤️</span>
-                    <p>{weatherError || "ยังไม่มีข้อมูลสภาพอากาศ"}</p>
-                    <button className="gold-button" onClick={fetchWeather}>
-                      ตรวจสอบสภาพอากาศ
-                    </button>
-                  </div>
-                )}
+            {/* SLEEP CARD */}
+            <div className="sleep-card">
+              <div className="sleep-icon">☾</div>
+              <div className="sleep-info">
+                <strong>นอนหลับ | ตื่นนอน</strong>
+                <span>จัดตารางการพักผ่อนของคุณ</span>
               </div>
-            </section>
+              <span className="sleep-arrow">›</span>
+            </div>
 
-            <section className="quote-card">
-              <span>✦ DAILY INSPIRATION</span>
-              <h3>Make every second count.</h3>
-              <p>ทุกวินาทีมีคุณค่า จงใช้เวลาให้ดีที่สุด</p>
-            </section>
-          </>
-        )}
-
-        {/* WEATHER PAGE */}
-        {activeTab === "weather" && (
-          <section className="page-section">
-            <span className="eyebrow">WEATHER INFORMATION</span>
-            <h1>สภาพอากาศวันนี้</h1>
-            <p className="page-description">
-              ตรวจสอบสภาพอากาศจากตำแหน่งปัจจุบันของคุณ
-            </p>
-
-            <div className="weather-card large-weather">
-              {weather ? (
-                <>
-                  <div className="large-weather-icon">{weatherInfo?.icon}</div>
-                  <div className="large-temperature">
-                    {Math.round(weather.temperature)}°C
-                  </div>
-                  <h2>{weatherInfo?.text}</h2>
-                  <p>{locationName}</p>
-
-                  <div className="weather-details">
-                    <div>
-                      <span>💧</span>
-                      <small>ความชื้น</small>
-                      <strong>{weather.humidity}%</strong>
-                    </div>
-                    <div>
-                      <span>🌡️</span>
-                      <small>รู้สึกเหมือน</small>
-                      <strong>{Math.round(weather.feelsLike)}°C</strong>
-                    </div>
-                    <div>
-                      <span>💨</span>
-                      <small>ความเร็วลม</small>
-                      <strong>{weather.windSpeed} km/h</strong>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="weather-message">
-                  {weatherLoading
-                    ? "กำลังโหลดข้อมูล..."
-                    : weatherError || "ยังไม่มีข้อมูลสภาพอากาศ"}
-                </div>
-              )}
-
-              <button className="gold-button" onClick={fetchWeather}>
-                ↻ อัปเดตสภาพอากาศ
+            <div className="sleep-summary">
+              <div>
+                <span className="muted-text">กำหนดเวลานอน</span>
+                <strong>ไม่มีการตั้งปลุก</strong>
+              </div>
+              <button className="configure-button" onClick={() => setShowAdd(true)}>
+                ตั้งค่า
               </button>
+            </div>
+
+            {/* ALARM LIST */}
+            <div className="list-heading">
+              <div>
+                <span className="eyebrow">WAKE UP ON TIME</span>
+                <h2>การตั้งปลุกอื่นๆ</h2>
+              </div>
+              <span className="alarm-count">
+                {alarms.filter((a) => a.enabled).length} ACTIVE
+              </span>
+            </div>
+
+            <div className="alarm-list">
+              {alarms.length === 0 ? (
+                <div className="empty-state">
+                  <div>◷</div>
+                  <p>ยังไม่มีนาฬิกาปลุก</p>
+                  <span>กดปุ่ม + เพื่อเพิ่มเวลาปลุกของคุณ</span>
+                </div>
+              ) : (
+                alarms.map((alarm) => (
+                  <div
+                    className={`alarm-row ${
+                      alarm.enabled ? "alarm-enabled" : "alarm-disabled"
+                    }`}
+                    key={alarm.id}
+                  >
+                    <div className="alarm-details">
+                      <div className="alarm-time">{alarm.time}</div>
+                      <div className="alarm-label">
+                        <span>{alarm.label}</span>
+                        <span className="day-list">
+                          {alarm.days.length
+                            ? alarm.days.join(" ")
+                            : "ครั้งเดียว"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="alarm-actions">
+                      {editing && (
+                        <button
+                          className="delete-button"
+                          onClick={() => deleteAlarm(alarm.id)}
+                        >
+                          ลบ
+                        </button>
+                      )}
+
+                      <button
+                        role="switch"
+                        aria-checked={alarm.enabled}
+                        aria-label={`เปิดหรือปิด ${alarm.label}`}
+                        className={`switch ${
+                          alarm.enabled ? "switch-on" : ""
+                        }`}
+                        onClick={() => toggleAlarm(alarm.id)}
+                      >
+                        <span />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </section>
         )}
 
-        {/* SETTINGS PAGE */}
-        {activeTab === "settings" && (
-          <section className="page-section">
-            <span className="eyebrow">PERSONALIZATION</span>
-            <h1>ตั้งค่าแอปพลิเคชัน</h1>
+        {/* WORLD CLOCK */}
+        {tab === "world" && (
+          <section className="screen">
+            <span className="eyebrow">GLOBAL TIME</span>
+            <h1>นาฬิกาโลก</h1>
             <p className="page-description">
-              ปรับแต่ง TIMELESS ในรูปแบบที่คุณต้องการ
+              เวลาปัจจุบันจากเมืองต่างๆ ทั่วโลก
             </p>
 
-            <div className="settings-card">
-              <div className="setting-item">
-                <div>
-                  <strong>รูปแบบหน้าจอ</strong>
-                  <p>เลือกธีมการแสดงผลของแอป</p>
-                </div>
-                <button
-                  className="setting-toggle"
-                  onClick={() => setDarkMode(!darkMode)}
-                >
-                  {darkMode ? "☀️ สว่าง" : "🌙 มืด"}
-                </button>
-              </div>
-
-              <div className="setting-item">
-                <div>
-                  <strong>เขตเวลา</strong>
-                  <p>เวลาประเทศไทย GMT+7</p>
-                </div>
-                <span className="setting-value">GMT+7</span>
-              </div>
-
-              <div className="setting-item">
-                <div>
-                  <strong>ชื่อแอปพลิเคชัน</strong>
-                  <p>TIMELESS - Your Daily Companion</p>
-                </div>
-                <span className="setting-value">T</span>
-              </div>
+            <div className="world-main-card">
+              <span>THAILAND · BANGKOK</span>
+              <div className="world-main-time">{timeNow}</div>
+              <strong>ประเทศไทย</strong>
+              <p>{dateNow}</p>
+              <span className="timezone-tag">GMT +7</span>
             </div>
 
-            <div className="about-card">
-              <div className="brand-logo">T</div>
-              <h2>TIMELESS</h2>
-              <p>YOUR DAILY COMPANION</p>
-              <small>Version 1.0.0</small>
+            <h2 className="subheading">เมืองต่างๆ</h2>
+
+            {[
+              { name: "London", country: "สหราชอาณาจักร", zone: "Europe/London", flag: "🇬🇧" },
+              { name: "Tokyo", country: "ญี่ปุ่น", zone: "Asia/Tokyo", flag: "🇯🇵" },
+              { name: "New York", country: "สหรัฐอเมริกา", zone: "America/New_York", flag: "🇺🇸" },
+              { name: "Singapore", country: "สิงคโปร์", zone: "Asia/Singapore", flag: "🇸🇬" },
+            ].map((city) => (
+              <div className="city-row" key={city.name}>
+                <div className="city-flag">{city.flag}</div>
+                <div className="city-info">
+                  <strong>{city.name}</strong>
+                  <span>{city.country}</span>
+                </div>
+                <div className="city-time">
+                  {getCityTime(city.zone)}
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {/* STOPWATCH */}
+        {tab === "stopwatch" && (
+          <section className="screen utility-screen">
+            <span className="eyebrow">PRECISION TIMEKEEPING</span>
+            <h1>นาฬิกาจับเวลา</h1>
+            <p className="page-description">
+              จับเวลาทุกช่วงเวลาสำคัญ
+            </p>
+
+            <div className="stopwatch-card">
+              <div className="stopwatch-ring">
+                <div className="stopwatch-value">
+                  {formatStopwatch(stopwatch)}
+                </div>
+                <span>HOUR : MIN : SEC</span>
+              </div>
+              <div className="utility-buttons">
+                <button
+                  className="secondary-button"
+                  onClick={() => {
+                    setStopwatchRunning(false);
+                    setStopwatch(0);
+                  }}
+                >
+                  รีเซ็ต
+                </button>
+                <button
+                  className="primary-button"
+                  onClick={() => setStopwatchRunning(!stopwatchRunning)}
+                >
+                  {stopwatchRunning ? "หยุดชั่วคราว" : "เริ่มจับเวลา"}
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* TIMER */}
+        {tab === "timer" && (
+          <section className="screen utility-screen">
+            <span className="eyebrow">COUNTDOWN TIMER</span>
+            <h1>นาฬิกานับถอยหลัง</h1>
+            <p className="page-description">
+              กำหนดเวลาและเริ่มนับถอยหลัง
+            </p>
+
+            <div className="timer-card">
+              <div className="timer-circle">
+                <div className="timer-value">
+                  {formatTimer(timerSeconds)}
+                </div>
+                <span>HOUR : MIN : SEC</span>
+              </div>
+
+              <div className="timer-input">
+                <label htmlFor="timer-minutes">กำหนดเวลา (นาที)</label>
+                <input
+                  id="timer-minutes"
+                  type="number"
+                  min="1"
+                  max="999"
+                  value={timerInput}
+                  disabled={timerRunning}
+                  onChange={(e) => {
+                    const value = Math.max(
+                      1,
+                      Math.min(999, Number(e.target.value))
+                    );
+                    setTimerInput(value);
+                    setTimerSeconds(value * 60);
+                  }}
+                />
+              </div>
+
+              <div className="utility-buttons">
+                <button
+                  className="secondary-button"
+                  onClick={() => {
+                    setTimerRunning(false);
+                    setTimerSeconds(timerInput * 60);
+                  }}
+                >
+                  รีเซ็ต
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={timerSeconds === 0 && !timerRunning}
+                  onClick={() => {
+                    if (!timerRunning && timerSeconds === 0) {
+                      setTimerSeconds(timerInput * 60);
+                    }
+                    setTimerRunning(!timerRunning);
+                  }}
+                >
+                  {timerRunning ? "หยุดชั่วคราว" : "เริ่มนับถอยหลัง"}
+                </button>
+              </div>
             </div>
           </section>
         )}
 
         {/* FOOTER */}
-        <footer className="footer">
-          <span>TIMELESS © 2026</span>
-          <span>DESIGNED FOR YOUR TIME ✦</span>
+        <footer className="app-footer">
+          <span>TIMELESS</span>
+          <span>MAKE EVERY SECOND COUNT ✦</span>
         </footer>
-
       </div>
 
+      {/* ADD ALARM MODAL */}
+      {showAdd && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowAdd(false)}
+        >
+          <div
+            className="alarm-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <span className="eyebrow">CREATE NEW ALARM</span>
+                <h2>เพิ่มนาฬิกาปลุก</h2>
+              </div>
+              <button
+                className="close-modal"
+                onClick={() => setShowAdd(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <label htmlFor="alarm-time">เลือกเวลา</label>
+            <input
+              id="alarm-time"
+              className="time-input"
+              type="time"
+              value={newTime}
+              onChange={(e) => setNewTime(e.target.value)}
+            />
+
+            <label htmlFor="alarm-label">ชื่อการปลุก</label>
+            <input
+              id="alarm-label"
+              className="text-input"
+              placeholder="เช่น ตื่นนอน, ไปเรียน"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+            />
+
+            <label>ทำซ้ำในวัน</label>
+            <div className="day-picker">
+              {dayNames.map((day) => (
+                <button
+                  key={day}
+                  className={newDays.includes(day) ? "day active-day" : "day"}
+                  onClick={() => toggleDay(day)}
+                >
+                  {day}
+                </button>
+              ))}
+            </div>
+
+            <button className="save-alarm-button" onClick={addAlarm}>
+              บันทึกนาฬิกาปลุก
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* BOTTOM NAVIGATION */}
-      <nav className="bottom-nav">
+      <nav className="bottom-navigation">
         <button
-          className={activeTab === "home" ? "nav-item active" : "nav-item"}
-          onClick={() => setActiveTab("home")}
+          className={tab === "world" ? "nav-button active-nav" : "nav-button"}
+          onClick={() => setTab("world")}
         >
-          <span>⌂</span>
-          <small>หน้าหลัก</small>
+          <span className="nav-icon">◎</span>
+          <span>นาฬิกาโลก</span>
         </button>
 
         <button
-          className={activeTab === "weather" ? "nav-item active" : "nav-item"}
-          onClick={() => setActiveTab("weather")}
+          className={tab === "alarm" ? "nav-button active-nav" : "nav-button"}
+          onClick={() => setTab("alarm")}
         >
-          <span>☀</span>
-          <small>สภาพอากาศ</small>
+          <span className="nav-icon">◷</span>
+          <span>นาฬิกาปลุก</span>
         </button>
 
         <button
-          className={activeTab === "settings" ? "nav-item active" : "nav-item"}
-          onClick={() => setActiveTab("settings")}
+          className={
+            tab === "stopwatch" ? "nav-button active-nav" : "nav-button"
+          }
+          onClick={() => setTab("stopwatch")}
         >
-          <span>⚙</span>
-          <small>ตั้งค่า</small>
+          <span className="nav-icon">⏱</span>
+          <span>จับเวลา</span>
+        </button>
+
+        <button
+          className={tab === "timer" ? "nav-button active-nav" : "nav-button"}
+          onClick={() => setTab("timer")}
+        >
+          <span className="nav-icon">◴</span>
+          <span>นับถอยหลัง</span>
         </button>
       </nav>
     </main>
