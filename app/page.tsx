@@ -9,15 +9,14 @@ type WeatherInfo = {
   wind: number;
   description: string;
   icon: string;
-  updatedAt: string;
 };
 
-const THAI_DAYS = [
+const DAYS = [
   "วันอาทิตย์", "วันจันทร์", "วันอังคาร", "วันพุธ",
   "วันพฤหัสบดี", "วันศุกร์", "วันเสาร์",
 ];
 
-const THAI_MONTHS = [
+const MONTHS = [
   "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน",
   "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม",
   "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
@@ -49,14 +48,12 @@ const WEATHER_CODES: Record<number, { description: string; icon: string }> = {
   99: { description: "พายุฝนฟ้าคะนองรุนแรง", icon: "⛈️" },
 };
 
-function pad(value: number): string {
-  return String(value).padStart(2, "0");
-}
+const pad = (value: number) => String(value).padStart(2, "0");
 
-function formatStopwatch(milliseconds: number): string {
-  const centiseconds = Math.floor(milliseconds / 10) % 100;
-  const seconds = Math.floor(milliseconds / 1000) % 60;
-  const minutes = Math.floor(milliseconds / 60000);
+function formatStopwatch(ms: number) {
+  const centiseconds = Math.floor(ms / 10) % 100;
+  const seconds = Math.floor(ms / 1000) % 60;
+  const minutes = Math.floor(ms / 60000);
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
 
@@ -71,39 +68,55 @@ export default function HomePage() {
   const [now, setNow] = useState<Date | null>(null);
   const [calendarMonth, setCalendarMonth] = useState<Date | null>(null);
   const [isLight, setIsLight] = useState(false);
+
   const [weather, setWeather] = useState<WeatherInfo | null>(null);
-  const [weatherStatus, setWeatherStatus] = useState("กำลังโหลดข้อมูลสภาพอากาศ...");
+  const [weatherStatus, setWeatherStatus] = useState(
+    "กำลังโหลดข้อมูลสภาพอากาศ...",
+  );
+
   const [stopwatchRunning, setStopwatchRunning] = useState(false);
   const [stopwatchMs, setStopwatchMs] = useState(0);
 
   const stopwatchStartRef = useRef(0);
   const stopwatchElapsedRef = useRef(0);
 
+  // นาฬิกาเรียลไทม์
   useEffect(() => {
     const update = () => setNow(new Date());
+
     update();
-    const timer = window.setInterval(update, 1000);
     setCalendarMonth(new Date());
+
+    const timer = window.setInterval(update, 1000);
 
     return () => window.clearInterval(timer);
   }, []);
 
+  // นาฬิกาจับเวลา
   useEffect(() => {
     if (!stopwatchRunning) return;
 
     stopwatchStartRef.current = Date.now();
+
     const timer = window.setInterval(() => {
       setStopwatchMs(
-        stopwatchElapsedRef.current + Date.now() - stopwatchStartRef.current,
+        stopwatchElapsedRef.current +
+          Date.now() -
+          stopwatchStartRef.current,
       );
     }, 30);
 
     return () => window.clearInterval(timer);
   }, [stopwatchRunning]);
 
+  // โหลดข้อมูลสภาพอากาศจาก API จริง
   const loadWeather = useCallback(
-    async (latitude = 17.0078, longitude = 99.823, place = "สุโขทัย") => {
-      setWeatherStatus(`กำลังโหลดสภาพอากาศ${place}...`);
+    async (
+      latitude = 17.0078,
+      longitude = 99.823,
+      place = "สุโขทัย",
+    ) => {
+      setWeatherStatus(`กำลังโหลดสภาพอากาศ ${place}...`);
 
       try {
         const params = new URLSearchParams({
@@ -120,12 +133,15 @@ export default function HomePage() {
         );
 
         if (!response.ok) {
-          throw new Error("ไม่สามารถดึงข้อมูลสภาพอากาศได้");
+          throw new Error("Weather API error");
         }
 
         const result = await response.json();
         const current = result.current;
-        const weatherCode = WEATHER_CODES[Number(current.weather_code)] ?? {
+
+        const weatherInfo = WEATHER_CODES[
+          Number(current.weather_code)
+        ] ?? {
           description: "ไม่ทราบสภาพอากาศ",
           icon: "🌡️",
         };
@@ -134,22 +150,20 @@ export default function HomePage() {
           temperature: Math.round(Number(current.temperature_2m)),
           humidity: Number(current.relative_humidity_2m),
           wind: Math.round(Number(current.wind_speed_10m)),
-          description: weatherCode.description,
-          icon: weatherCode.icon,
-          updatedAt: new Date().toLocaleTimeString("th-TH", {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
+          description: weatherInfo.description,
+          icon: weatherInfo.icon,
         });
 
         setWeatherStatus(
-          `ข้อมูลล่าสุด ${new Date().toLocaleTimeString("th-TH", {
+          `อัปเดตล่าสุด ${new Date().toLocaleTimeString("th-TH", {
             hour: "2-digit",
             minute: "2-digit",
           })} · Open-Meteo`,
         );
       } catch {
-        setWeatherStatus("โหลดข้อมูลไม่สำเร็จ โปรดตรวจสอบอินเทอร์เน็ต");
+        setWeatherStatus(
+          "โหลดข้อมูลไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต",
+        );
       }
     },
     [],
@@ -173,7 +187,7 @@ export default function HomePage() {
           );
         },
         () => {
-          // หากไม่อนุญาตใช้ตำแหน่ง จะใช้พิกัดสุโขทัยเป็นค่าเริ่มต้น
+          // ใช้พิกัดสุโขทัยหากไม่อนุญาตตำแหน่ง
         },
         { timeout: 5000 },
       );
@@ -182,6 +196,7 @@ export default function HomePage() {
     return () => window.clearInterval(refreshTimer);
   }, [loadWeather]);
 
+  // สร้างวันที่ในปฏิทิน
   const calendarCells = useMemo(() => {
     if (!calendarMonth) return [];
 
@@ -211,7 +226,7 @@ export default function HomePage() {
       }
 
       const day = index - firstDay + 1;
-      const currentDate = new Date();
+      const currentDate = now ?? new Date();
 
       return {
         day,
@@ -237,7 +252,8 @@ export default function HomePage() {
     });
   };
 
-  const startStopwatch = () => {
+  // ควบคุมนาฬิกาจับเวลา
+  const toggleStopwatch = () => {
     if (stopwatchRunning) {
       const total =
         stopwatchElapsedRef.current +
@@ -262,7 +278,10 @@ export default function HomePage() {
   if (!now) {
     return (
       <main className={`dashboard ${isLight ? "light" : ""}`}>
-        <div className="loading-screen">กำลังเตรียม Dashboard...</div>
+        <div className="loading-screen">
+          <span className="loading-icon">◷</span>
+          กำลังเตรียม Dashboard...
+        </div>
       </main>
     );
   }
@@ -270,18 +289,22 @@ export default function HomePage() {
   const hour = now.getHours();
   const minute = now.getMinutes();
   const second = now.getSeconds();
+
   const secondsToday = hour * 3600 + minute * 60 + second;
   const dayProgress = (secondsToday / 86400) * 100;
 
   return (
     <main className={`dashboard ${isLight ? "light" : ""}`}>
       <div className="dashboard-shell">
+
+        {/* HEADER */}
         <header className="topbar">
           <div className="brand">
             <div className="brand-logo">◷</div>
+
             <div>
               <h1>Multimedia &amp; Clock</h1>
-              <p>Your personal live widget dashboard</p>
+              <p>Luxury Personal Dashboard</p>
             </div>
           </div>
 
@@ -303,35 +326,47 @@ export default function HomePage() {
           </div>
         </header>
 
+        {/* PAGE TITLE */}
         <div className="section-heading">
-          <h2>ภาพรวมของคุณ</h2>
-          <span>
+          <div>
+            <span className="eyebrow">WELCOME BACK</span>
+            <h2>ภาพรวมของคุณ</h2>
+          </div>
+
+          <span className="updated-time">
             อัปเดตล่าสุด {pad(hour)}:{pad(minute)}:{pad(second)}
           </span>
         </div>
 
+        {/* WIDGETS */}
         <section className="widget-grid">
+
+          {/* DATE */}
           <article className="widget date-widget">
             <div className="widget-heading">
               <span>วันที่วันนี้</span>
               <span className="heading-icon">▦</span>
             </div>
 
-            <div className="date-day">{THAI_DAYS[now.getDay()]}</div>
-            <div className="date-number">{now.getDate()}</div>
+            <div className="date-day">{DAYS[now.getDay()]}</div>
+
+            <div className="date-number">
+              {now.getDate()}
+            </div>
 
             <div className="date-month">
-              {THAI_MONTHS[now.getMonth()]} {now.getFullYear() + 543}
+              {MONTHS[now.getMonth()]} {now.getFullYear() + 543}
             </div>
           </article>
 
+          {/* DIGITAL CLOCK */}
           <article className="widget digital-widget">
             <div className="widget-heading">
               <span>
                 <span className="status-dot" />
                 เวลาปัจจุบัน
               </span>
-              <span>LIVE</span>
+              <span className="live-label">LIVE</span>
             </div>
 
             <div className="digital-time">
@@ -339,18 +374,19 @@ export default function HomePage() {
             </div>
 
             <div className="muted-text">
-              {THAI_DAYS[now.getDay()]}ที่ {now.getDate()}{" "}
-              {THAI_MONTHS[now.getMonth()]} {now.getFullYear() + 543}
+              {DAYS[now.getDay()]}ที่ {now.getDate()}{" "}
+              {MONTHS[now.getMonth()]} {now.getFullYear() + 543}
             </div>
           </article>
 
+          {/* ANALOG CLOCK */}
           <article className="widget analog-widget">
             <div className="widget-heading">
               <span>นาฬิกาเข็ม</span>
               <span className="heading-icon">◷</span>
             </div>
 
-            <div className="clock-face" aria-label="นาฬิกาเข็ม">
+            <div className="clock-face">
               <span className="clock-label label-12">12</span>
               <span className="clock-label label-3">3</span>
               <span className="clock-label label-6">6</span>
@@ -381,6 +417,7 @@ export default function HomePage() {
             </div>
           </article>
 
+          {/* WEATHER */}
           <article className="widget weather-widget">
             <div className="widget-heading">
               <span>สภาพอากาศ</span>
@@ -394,18 +431,22 @@ export default function HomePage() {
                     <div className="temperature">
                       {weather.temperature}°
                     </div>
+
                     <div className="muted-text">
                       {weather.description}
                     </div>
                   </div>
 
-                  <div className="weather-icon">{weather.icon}</div>
+                  <div className="weather-icon">
+                    {weather.icon}
+                  </div>
                 </div>
 
                 <div className="weather-meta">
                   <span>
                     💧 ความชื้น <b>{weather.humidity}%</b>
                   </span>
+
                   <span>
                     💨 ลม <b>{weather.wind} กม./ชม.</b>
                   </span>
@@ -417,9 +458,12 @@ export default function HomePage() {
               </div>
             )}
 
-            <div className="small-status">{weatherStatus}</div>
+            <div className="small-status">
+              {weatherStatus}
+            </div>
           </article>
 
+          {/* STOPWATCH */}
           <article className="widget stopwatch-widget">
             <div className="widget-heading">
               <span>นาฬิกาจับเวลา</span>
@@ -434,7 +478,7 @@ export default function HomePage() {
               <button
                 className="primary-button"
                 type="button"
-                onClick={startStopwatch}
+                onClick={toggleStopwatch}
               >
                 {stopwatchRunning ? "หยุด" : "เริ่ม"}
               </button>
@@ -449,6 +493,7 @@ export default function HomePage() {
             </div>
           </article>
 
+          {/* CALENDAR */}
           <article className="widget calendar-widget">
             <div className="widget-heading">
               <span>ปฏิทิน</span>
@@ -458,7 +503,7 @@ export default function HomePage() {
             <div className="calendar-top">
               <strong>
                 {calendarMonth
-                  ? `${THAI_MONTHS[calendarMonth.getMonth()]} ${calendarMonth.getFullYear() + 543}`
+                  ? `${MONTHS[calendarMonth.getMonth()]} ${calendarMonth.getFullYear() + 543}`
                   : ""}
               </strong>
 
@@ -499,6 +544,7 @@ export default function HomePage() {
             </div>
           </article>
 
+          {/* DAILY PROGRESS */}
           <article className="widget progress-widget">
             <div className="widget-heading">
               <span>สรุปเวลาประจำวัน</span>
@@ -522,6 +568,7 @@ export default function HomePage() {
             </div>
           </article>
 
+          {/* DAILY QUOTE */}
           <article className="widget quote-widget">
             <div>
               <div className="widget-heading">
@@ -530,17 +577,29 @@ export default function HomePage() {
               </div>
 
               <p className="quote-text">
-                เริ่มต้นจากสิ่งเล็ก ๆ แล้วค่อย ๆ พัฒนาให้ดีขึ้นในทุกวัน
+                เริ่มต้นจากสิ่งเล็ก ๆ แล้วค่อย ๆ
+                พัฒนาให้ดีขึ้นในทุกวัน
               </p>
             </div>
 
-            <div className="muted-text">Have a nice day ✨</div>
+            <div className="quote-footer">
+              HAVE A NICE DAY <span>✦</span>
+            </div>
           </article>
+
         </section>
 
+        {/* FOOTER */}
         <footer className="footer">
-          Multimedia &amp; Clock Dashboard · Responsive for all devices
+          <span className="footer-line" />
+          <p>
+            MULTIMEDIA &amp; CLOCK
+            <span> · </span>
+            LUXURY DASHBOARD
+          </p>
+          <span className="footer-line" />
         </footer>
+
       </div>
     </main>
   );
