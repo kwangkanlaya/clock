@@ -18,6 +18,7 @@ const dayNames = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
 export default function Home() {
   const [tab, setTab] = useState<Tab>("alarm");
   const [now, setNow] = useState(new Date());
+
   const [alarms, setAlarms] = useState<Alarm[]>([
     {
       id: 1,
@@ -55,14 +56,17 @@ export default function Home() {
 
   useEffect(() => {
     if (!stopwatchRunning) return;
+
     const interval = setInterval(() => {
       setStopwatch((value) => value + 10);
     }, 10);
+
     return () => clearInterval(interval);
   }, [stopwatchRunning]);
 
   useEffect(() => {
     if (!timerRunning) return;
+
     const interval = setInterval(() => {
       setTimerSeconds((value) => {
         if (value <= 1) {
@@ -72,6 +76,7 @@ export default function Home() {
         return value - 1;
       });
     }, 1000);
+
     return () => clearInterval(interval);
   }, [timerRunning]);
 
@@ -164,15 +169,6 @@ export default function Home() {
   return (
     <main className="phone-app">
       <div className="app-content">
-        {/* STATUS BAR */}
-        <div className="status-bar">
-          <span>{timeNow}</span>
-          <div className="status-icons">
-            <span>● ● ●</span>
-            <span>5G</span>
-            <span className="battery">81%</span>
-          </div>
-        </div>
 
         {/* HEADER */}
         <header className="top-header">
@@ -180,9 +176,12 @@ export default function Home() {
             <div className="brand-icon">T</div>
             <div>
               <div className="brand-name">TIMELESS</div>
-              <div className="brand-subtitle">YOUR DAILY COMPANION</div>
+              <div className="brand-subtitle">
+                YOUR DAILY COMPANION
+              </div>
             </div>
           </div>
+
           <div className="header-date">
             {dateNow}
           </div>
@@ -204,6 +203,7 @@ export default function Home() {
                 >
                   {editing ? "เสร็จสิ้น" : "แก้ไข"}
                 </button>
+
                 <button
                   className="add-button"
                   onClick={() => setShowAdd(true)}
@@ -214,32 +214,39 @@ export default function Home() {
               </div>
             </div>
 
-            {/* SLEEP CARD */}
             <div className="sleep-card">
               <div className="sleep-icon">☾</div>
+
               <div className="sleep-info">
                 <strong>นอนหลับ | ตื่นนอน</strong>
                 <span>จัดตารางการพักผ่อนของคุณ</span>
               </div>
+
               <span className="sleep-arrow">›</span>
             </div>
 
             <div className="sleep-summary">
               <div>
-                <span className="muted-text">กำหนดเวลานอน</span>
+                <span className="muted-text">
+                  กำหนดเวลานอน
+                </span>
                 <strong>ไม่มีการตั้งปลุก</strong>
               </div>
-              <button className="configure-button" onClick={() => setShowAdd(true)}>
+
+              <button
+                className="configure-button"
+                onClick={() => setShowAdd(true)}
+              >
                 ตั้งค่า
               </button>
             </div>
 
-            {/* ALARM LIST */}
             <div className="list-heading">
               <div>
                 <span className="eyebrow">WAKE UP ON TIME</span>
                 <h2>การตั้งปลุกอื่นๆ</h2>
               </div>
+
               <span className="alarm-count">
                 {alarms.filter((a) => a.enabled).length} ACTIVE
               </span>
@@ -256,12 +263,17 @@ export default function Home() {
                 alarms.map((alarm) => (
                   <div
                     className={`alarm-row ${
-                      alarm.enabled ? "alarm-enabled" : "alarm-disabled"
+                      alarm.enabled
+                        ? "alarm-enabled"
+                        : "alarm-disabled"
                     }`}
                     key={alarm.id}
                   >
                     <div className="alarm-details">
-                      <div className="alarm-time">{alarm.time}</div>
+                      <div className="alarm-time">
+                        {alarm.time}
+                      </div>
+
                       <div className="alarm-label">
                         <span>{alarm.label}</span>
                         <span className="day-list">
@@ -306,13 +318,18 @@ export default function Home() {
           <section className="screen">
             <span className="eyebrow">GLOBAL TIME</span>
             <h1>นาฬิกาโลก</h1>
+
             <p className="page-description">
               เวลาปัจจุบันจากเมืองต่างๆ ทั่วโลก
             </p>
 
             <div className="world-main-card">
               <span>THAILAND · BANGKOK</span>
-              <div className="world-main-time">{timeNow}</div>
+
+              <div className="world-main-time">
+                {timeNow}
+              </div>
+
               <strong>ประเทศไทย</strong>
               <p>{dateNow}</p>
               <span className="timezone-tag">GMT +7</span>
@@ -321,17 +338,39 @@ export default function Home() {
             <h2 className="subheading">เมืองต่างๆ</h2>
 
             {[
-              { name: "London", country: "สหราชอาณาจักร", zone: "Europe/London", flag: "🇬🇧" },
-              { name: "Tokyo", country: "ญี่ปุ่น", zone: "Asia/Tokyo", flag: "🇯🇵" },
-              { name: "New York", country: "สหรัฐอเมริกา", zone: "America/New_York", flag: "🇺🇸" },
-              { name: "Singapore", country: "สิงคโปร์", zone: "Asia/Singapore", flag: "🇸🇬" },
+              {
+                name: "London",
+                country: "สหราชอาณาจักร",
+                zone: "Europe/London",
+                flag: "🇬🇧",
+              },
+              {
+                name: "Tokyo",
+                country: "ญี่ปุ่น",
+                zone: "Asia/Tokyo",
+                flag: "🇯🇵",
+              },
+              {
+                name: "New York",
+                country: "สหรัฐอเมริกา",
+                zone: "America/New_York",
+                flag: "🇺🇸",
+              },
+              {
+                name: "Singapore",
+                country: "สิงคโปร์",
+                zone: "Asia/Singapore",
+                flag: "🇸🇬",
+              },
             ].map((city) => (
               <div className="city-row" key={city.name}>
                 <div className="city-flag">{city.flag}</div>
+
                 <div className="city-info">
                   <strong>{city.name}</strong>
                   <span>{city.country}</span>
                 </div>
+
                 <div className="city-time">
                   {getCityTime(city.zone)}
                 </div>
@@ -343,8 +382,12 @@ export default function Home() {
         {/* STOPWATCH */}
         {tab === "stopwatch" && (
           <section className="screen utility-screen">
-            <span className="eyebrow">PRECISION TIMEKEEPING</span>
+            <span className="eyebrow">
+              PRECISION TIMEKEEPING
+            </span>
+
             <h1>นาฬิกาจับเวลา</h1>
+
             <p className="page-description">
               จับเวลาทุกช่วงเวลาสำคัญ
             </p>
@@ -356,6 +399,7 @@ export default function Home() {
                 </div>
                 <span>HOUR : MIN : SEC</span>
               </div>
+
               <div className="utility-buttons">
                 <button
                   className="secondary-button"
@@ -366,11 +410,16 @@ export default function Home() {
                 >
                   รีเซ็ต
                 </button>
+
                 <button
                   className="primary-button"
-                  onClick={() => setStopwatchRunning(!stopwatchRunning)}
+                  onClick={() =>
+                    setStopwatchRunning(!stopwatchRunning)
+                  }
                 >
-                  {stopwatchRunning ? "หยุดชั่วคราว" : "เริ่มจับเวลา"}
+                  {stopwatchRunning
+                    ? "หยุดชั่วคราว"
+                    : "เริ่มจับเวลา"}
                 </button>
               </div>
             </div>
@@ -381,7 +430,9 @@ export default function Home() {
         {tab === "timer" && (
           <section className="screen utility-screen">
             <span className="eyebrow">COUNTDOWN TIMER</span>
+
             <h1>นาฬิกานับถอยหลัง</h1>
+
             <p className="page-description">
               กำหนดเวลาและเริ่มนับถอยหลัง
             </p>
@@ -395,7 +446,10 @@ export default function Home() {
               </div>
 
               <div className="timer-input">
-                <label htmlFor="timer-minutes">กำหนดเวลา (นาที)</label>
+                <label htmlFor="timer-minutes">
+                  กำหนดเวลา (นาที)
+                </label>
+
                 <input
                   id="timer-minutes"
                   type="number"
@@ -408,6 +462,7 @@ export default function Home() {
                       1,
                       Math.min(999, Number(e.target.value))
                     );
+
                     setTimerInput(value);
                     setTimerSeconds(value * 60);
                   }}
@@ -424,6 +479,7 @@ export default function Home() {
                 >
                   รีเซ็ต
                 </button>
+
                 <button
                   className="primary-button"
                   disabled={timerSeconds === 0 && !timerRunning}
@@ -431,10 +487,13 @@ export default function Home() {
                     if (!timerRunning && timerSeconds === 0) {
                       setTimerSeconds(timerInput * 60);
                     }
+
                     setTimerRunning(!timerRunning);
                   }}
                 >
-                  {timerRunning ? "หยุดชั่วคราว" : "เริ่มนับถอยหลัง"}
+                  {timerRunning
+                    ? "หยุดชั่วคราว"
+                    : "เริ่มนับถอยหลัง"}
                 </button>
               </div>
             </div>
@@ -460,9 +519,12 @@ export default function Home() {
           >
             <div className="modal-header">
               <div>
-                <span className="eyebrow">CREATE NEW ALARM</span>
+                <span className="eyebrow">
+                  CREATE NEW ALARM
+                </span>
                 <h2>เพิ่มนาฬิกาปลุก</h2>
               </div>
+
               <button
                 className="close-modal"
                 onClick={() => setShowAdd(false)}
@@ -472,6 +534,7 @@ export default function Home() {
             </div>
 
             <label htmlFor="alarm-time">เลือกเวลา</label>
+
             <input
               id="alarm-time"
               className="time-input"
@@ -481,6 +544,7 @@ export default function Home() {
             />
 
             <label htmlFor="alarm-label">ชื่อการปลุก</label>
+
             <input
               id="alarm-label"
               className="text-input"
@@ -490,11 +554,16 @@ export default function Home() {
             />
 
             <label>ทำซ้ำในวัน</label>
+
             <div className="day-picker">
               {dayNames.map((day) => (
                 <button
                   key={day}
-                  className={newDays.includes(day) ? "day active-day" : "day"}
+                  className={
+                    newDays.includes(day)
+                      ? "day active-day"
+                      : "day"
+                  }
                   onClick={() => toggleDay(day)}
                 >
                   {day}
@@ -502,7 +571,10 @@ export default function Home() {
               ))}
             </div>
 
-            <button className="save-alarm-button" onClick={addAlarm}>
+            <button
+              className="save-alarm-button"
+              onClick={addAlarm}
+            >
               บันทึกนาฬิกาปลุก
             </button>
           </div>
@@ -512,7 +584,9 @@ export default function Home() {
       {/* BOTTOM NAVIGATION */}
       <nav className="bottom-navigation">
         <button
-          className={tab === "world" ? "nav-button active-nav" : "nav-button"}
+          className={
+            tab === "world" ? "nav-button active-nav" : "nav-button"
+          }
           onClick={() => setTab("world")}
         >
           <span className="nav-icon">◎</span>
@@ -520,7 +594,9 @@ export default function Home() {
         </button>
 
         <button
-          className={tab === "alarm" ? "nav-button active-nav" : "nav-button"}
+          className={
+            tab === "alarm" ? "nav-button active-nav" : "nav-button"
+          }
           onClick={() => setTab("alarm")}
         >
           <span className="nav-icon">◷</span>
@@ -529,7 +605,9 @@ export default function Home() {
 
         <button
           className={
-            tab === "stopwatch" ? "nav-button active-nav" : "nav-button"
+            tab === "stopwatch"
+              ? "nav-button active-nav"
+              : "nav-button"
           }
           onClick={() => setTab("stopwatch")}
         >
@@ -538,7 +616,9 @@ export default function Home() {
         </button>
 
         <button
-          className={tab === "timer" ? "nav-button active-nav" : "nav-button"}
+          className={
+            tab === "timer" ? "nav-button active-nav" : "nav-button"
+          }
           onClick={() => setTab("timer")}
         >
           <span className="nav-icon">◴</span>
