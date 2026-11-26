@@ -37,9 +37,6 @@ const WEATHER_CODES: Record<number, { description: string; icon: string }> = {
   61: { description: "ฝนตกเล็กน้อย", icon: "🌦️" },
   63: { description: "ฝนตกปานกลาง", icon: "🌧️" },
   65: { description: "ฝนตกหนัก", icon: "🌧️" },
-  71: { description: "หิมะตกเล็กน้อย", icon: "🌨️" },
-  73: { description: "หิมะตกปานกลาง", icon: "🌨️" },
-  75: { description: "หิมะตกหนัก", icon: "❄️" },
   80: { description: "ฝนตกเป็นช่วง", icon: "🌦️" },
   81: { description: "ฝนตกเป็นช่วงปานกลาง", icon: "🌧️" },
   82: { description: "ฝนตกหนักเป็นช่วง", icon: "⛈️" },
@@ -48,53 +45,46 @@ const WEATHER_CODES: Record<number, { description: string; icon: string }> = {
   99: { description: "พายุฝนฟ้าคะนองรุนแรง", icon: "⛈️" },
 };
 
-const pad = (value: number) => String(value).padStart(2, "0");
+const pad = (n: number) => String(n).padStart(2, "0");
 
 function formatStopwatch(ms: number) {
-  const centiseconds = Math.floor(ms / 10) % 100;
+  const cs = Math.floor(ms / 10) % 100;
   const seconds = Math.floor(ms / 1000) % 60;
   const minutes = Math.floor(ms / 60000);
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
 
-  if (hours > 0) {
-    return `${pad(hours)}:${pad(remainingMinutes)}:${pad(seconds)}.${pad(centiseconds)}`;
-  }
-
-  return `${pad(remainingMinutes)}:${pad(seconds)}.${pad(centiseconds)}`;
+  return hours > 0
+    ? `${pad(hours)}:${pad(remainingMinutes)}:${pad(seconds)}.${pad(cs)}`
+    : `${pad(remainingMinutes)}:${pad(seconds)}.${pad(cs)}`;
 }
 
 export default function HomePage() {
   const [now, setNow] = useState<Date | null>(null);
   const [calendarMonth, setCalendarMonth] = useState<Date | null>(null);
   const [isLight, setIsLight] = useState(false);
+  const [activeTab, setActiveTab] = useState("home");
 
   const [weather, setWeather] = useState<WeatherInfo | null>(null);
-  const [weatherStatus, setWeatherStatus] = useState(
-    "กำลังโหลดข้อมูลสภาพอากาศ...",
-  );
+  const [weatherStatus, setWeatherStatus] = useState("กำลังโหลดข้อมูล...");
 
-  const [stopwatchRunning, setStopwatchRunning] = useState(false);
+  const [running, setRunning] = useState(false);
   const [stopwatchMs, setStopwatchMs] = useState(0);
 
   const stopwatchStartRef = useRef(0);
   const stopwatchElapsedRef = useRef(0);
 
-  // นาฬิกาเรียลไทม์
   useEffect(() => {
     const update = () => setNow(new Date());
-
     update();
     setCalendarMonth(new Date());
 
     const timer = window.setInterval(update, 1000);
-
     return () => window.clearInterval(timer);
   }, []);
 
-  // นาฬิกาจับเวลา
   useEffect(() => {
-    if (!stopwatchRunning) return;
+    if (!running) return;
 
     stopwatchStartRef.current = Date.now();
 
@@ -107,16 +97,15 @@ export default function HomePage() {
     }, 30);
 
     return () => window.clearInterval(timer);
-  }, [stopwatchRunning]);
+  }, [running]);
 
-  // โหลดข้อมูลสภาพอากาศจาก API จริง
   const loadWeather = useCallback(
     async (
       latitude = 17.0078,
       longitude = 99.823,
       place = "สุโขทัย",
     ) => {
-      setWeatherStatus(`กำลังโหลดสภาพอากาศ ${place}...`);
+      setWeatherStatus(`กำลังโหลดข้อมูล ${place}`);
 
       try {
         const params = new URLSearchParams({
@@ -128,20 +117,15 @@ export default function HomePage() {
         });
 
         const response = await fetch(
-          `https://api.open-meteo.com/v1/forecast?${params.toString()}`,
+          `https://api.open-meteo.com/v1/forecast?${params}`,
           { cache: "no-store" },
         );
 
-        if (!response.ok) {
-          throw new Error("Weather API error");
-        }
+        if (!response.ok) throw new Error("Weather error");
 
         const result = await response.json();
         const current = result.current;
-
-        const weatherInfo = WEATHER_CODES[
-          Number(current.weather_code)
-        ] ?? {
+        const info = WEATHER_CODES[Number(current.weather_code)] ?? {
           description: "ไม่ทราบสภาพอากาศ",
           icon: "🌡️",
         };
@@ -150,20 +134,18 @@ export default function HomePage() {
           temperature: Math.round(Number(current.temperature_2m)),
           humidity: Number(current.relative_humidity_2m),
           wind: Math.round(Number(current.wind_speed_10m)),
-          description: weatherInfo.description,
-          icon: weatherInfo.icon,
+          description: info.description,
+          icon: info.icon,
         });
 
         setWeatherStatus(
-          `อัปเดตล่าสุด ${new Date().toLocaleTimeString("th-TH", {
+          `อัปเดต ${new Date().toLocaleTimeString("th-TH", {
             hour: "2-digit",
             minute: "2-digit",
-          })} · Open-Meteo`,
+          })}`,
         );
       } catch {
-        setWeatherStatus(
-          "โหลดข้อมูลไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต",
-        );
+        setWeatherStatus("ไม่สามารถโหลดข้อมูลได้ กรุณาตรวจสอบอินเทอร์เน็ต");
       }
     },
     [],
@@ -172,7 +154,7 @@ export default function HomePage() {
   useEffect(() => {
     void loadWeather();
 
-    const refreshTimer = window.setInterval(
+    const refresh = window.setInterval(
       () => void loadWeather(),
       15 * 60 * 1000,
     );
@@ -186,56 +168,53 @@ export default function HomePage() {
             "ตำแหน่งของคุณ",
           );
         },
-        () => {
-          // ใช้พิกัดสุโขทัยหากไม่อนุญาตตำแหน่ง
-        },
+        () => {},
         { timeout: 5000 },
       );
     }
 
-    return () => window.clearInterval(refreshTimer);
+    return () => window.clearInterval(refresh);
   }, [loadWeather]);
 
-  // สร้างวันที่ในปฏิทิน
   const calendarCells = useMemo(() => {
     if (!calendarMonth) return [];
 
     const year = calendarMonth.getFullYear();
     const month = calendarMonth.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const previousMonthDays = new Date(year, month, 0).getDate();
+    const first = new Date(year, month, 1).getDay();
+    const total = new Date(year, month + 1, 0).getDate();
+    const previous = new Date(year, month, 0).getDate();
 
     return Array.from({ length: 42 }, (_, index) => {
-      if (index < firstDay) {
+      if (index < first) {
         return {
-          day: previousMonthDays - firstDay + index + 1,
+          day: previous - first + index + 1,
           muted: true,
-          key: `prev-${index}`,
+          key: `p${index}`,
           today: false,
         };
       }
 
-      if (index >= firstDay + daysInMonth) {
+      if (index >= first + total) {
         return {
-          day: index - firstDay - daysInMonth + 1,
+          day: index - first - total + 1,
           muted: true,
-          key: `next-${index}`,
+          key: `n${index}`,
           today: false,
         };
       }
 
-      const day = index - firstDay + 1;
-      const currentDate = now ?? new Date();
+      const day = index - first + 1;
+      const date = now ?? new Date();
 
       return {
         day,
         muted: false,
-        key: `current-${day}`,
+        key: `d${day}`,
         today:
-          day === currentDate.getDate() &&
-          month === currentDate.getMonth() &&
-          year === currentDate.getFullYear(),
+          day === date.getDate() &&
+          month === date.getMonth() &&
+          year === date.getFullYear(),
       };
     });
   }, [calendarMonth, now]);
@@ -252,9 +231,8 @@ export default function HomePage() {
     });
   };
 
-  // ควบคุมนาฬิกาจับเวลา
   const toggleStopwatch = () => {
-    if (stopwatchRunning) {
+    if (running) {
       const total =
         stopwatchElapsedRef.current +
         Date.now() -
@@ -262,14 +240,14 @@ export default function HomePage() {
 
       stopwatchElapsedRef.current = total;
       setStopwatchMs(total);
-      setStopwatchRunning(false);
+      setRunning(false);
     } else {
-      setStopwatchRunning(true);
+      setRunning(true);
     }
   };
 
   const resetStopwatch = () => {
-    setStopwatchRunning(false);
+    setRunning(false);
     stopwatchElapsedRef.current = 0;
     stopwatchStartRef.current = 0;
     setStopwatchMs(0);
@@ -277,11 +255,8 @@ export default function HomePage() {
 
   if (!now) {
     return (
-      <main className={`dashboard ${isLight ? "light" : ""}`}>
-        <div className="loading-screen">
-          <span className="loading-icon">◷</span>
-          กำลังเตรียม Dashboard...
-        </div>
+      <main className="app-background">
+        <div className="loading-screen">กำลังเตรียมแอปพลิเคชัน...</div>
       </main>
     );
   }
@@ -290,253 +265,136 @@ export default function HomePage() {
   const minute = now.getMinutes();
   const second = now.getSeconds();
 
-  const secondsToday = hour * 3600 + minute * 60 + second;
-  const dayProgress = (secondsToday / 86400) * 100;
+  const progress =
+    ((hour * 3600 + minute * 60 + second) / 86400) * 100;
 
   return (
-    <main className={`dashboard ${isLight ? "light" : ""}`}>
-      <div className="dashboard-shell">
+    <main className={`app-background ${isLight ? "light" : ""}`}>
+      <div className="mobile-app">
 
-        {/* HEADER */}
-        <header className="topbar">
-          <div className="brand">
-            <div className="brand-logo">◷</div>
-
+        <header className="app-header">
+          <div className="app-brand">
+            <div className="app-logo">◷</div>
             <div>
-              <h1>Multimedia &amp; Clock</h1>
-              <p>Luxury Personal Dashboard</p>
+              <h1>TIMELESS</h1>
+              <p>YOUR PERSONAL SPACE</p>
             </div>
           </div>
 
-          <div className="top-actions">
-            <span className="system-status">
-              <span className="status-dot" />
-              ระบบพร้อมใช้งาน
-            </span>
-
-            <button
-              className="theme-button"
-              type="button"
-              onClick={() => setIsLight((value) => !value)}
-              aria-label="เปลี่ยนธีม"
-              title="เปลี่ยนธีม"
-            >
-              {isLight ? "☾" : "☼"}
-            </button>
-          </div>
+          <button
+            className="theme-toggle"
+            onClick={() => setIsLight((v) => !v)}
+            type="button"
+            aria-label="เปลี่ยนธีม"
+          >
+            {isLight ? "☾" : "☼"}
+          </button>
         </header>
 
-        {/* PAGE TITLE */}
-        <div className="section-heading">
+        <section className="welcome-section">
           <div>
             <span className="eyebrow">WELCOME BACK</span>
-            <h2>ภาพรวมของคุณ</h2>
+            <h2>สวัสดี วันนี้เป็นอย่างไรบ้าง?</h2>
+            <p>{DAYS[now.getDay()]}ที่ {now.getDate()} {MONTHS[now.getMonth()]} {now.getFullYear() + 543}</p>
+          </div>
+          <span className="welcome-sparkle">✦</span>
+        </section>
+
+        <section className="hero-clock">
+          <div className="hero-clock-top">
+            <span><i className="live-dot" /> LIVE CLOCK</span>
+            <span>THAILAND · GMT+7</span>
           </div>
 
-          <span className="updated-time">
-            อัปเดตล่าสุด {pad(hour)}:{pad(minute)}:{pad(second)}
-          </span>
-        </div>
+          <div className="hero-time">
+            {pad(hour)}<span>:</span>{pad(minute)}
+          </div>
 
-        {/* WIDGETS */}
-        <section className="widget-grid">
+          <div className="hero-seconds">
+            {pad(second)} SECONDS
+          </div>
 
-          {/* DATE */}
-          <article className="widget date-widget">
-            <div className="widget-heading">
-              <span>วันที่วันนี้</span>
-              <span className="heading-icon">▦</span>
+          <div className="hero-date">
+            {DAYS[now.getDay()]} · {now.getDate()} {MONTHS[now.getMonth()]} {now.getFullYear() + 543}
+          </div>
+
+          <div className="hero-decoration">✧</div>
+        </section>
+
+        <section className="weather-card">
+          <div className="card-title">
+            <div>
+              <span className="eyebrow">LIVE WEATHER</span>
+              <h3>สภาพอากาศ</h3>
             </div>
+            <span className="weather-symbol">{weather?.icon ?? "☁️"}</span>
+          </div>
 
-            <div className="date-day">{DAYS[now.getDay()]}</div>
-
-            <div className="date-number">
-              {now.getDate()}
-            </div>
-
-            <div className="date-month">
-              {MONTHS[now.getMonth()]} {now.getFullYear() + 543}
-            </div>
-          </article>
-
-          {/* DIGITAL CLOCK */}
-          <article className="widget digital-widget">
-            <div className="widget-heading">
-              <span>
-                <span className="status-dot" />
-                เวลาปัจจุบัน
-              </span>
-              <span className="live-label">LIVE</span>
-            </div>
-
-            <div className="digital-time">
-              {pad(hour)}:{pad(minute)}:{pad(second)}
-            </div>
-
-            <div className="muted-text">
-              {DAYS[now.getDay()]}ที่ {now.getDate()}{" "}
-              {MONTHS[now.getMonth()]} {now.getFullYear() + 543}
-            </div>
-          </article>
-
-          {/* ANALOG CLOCK */}
-          <article className="widget analog-widget">
-            <div className="widget-heading">
-              <span>นาฬิกาเข็ม</span>
-              <span className="heading-icon">◷</span>
-            </div>
-
-            <div className="clock-face">
-              <span className="clock-label label-12">12</span>
-              <span className="clock-label label-3">3</span>
-              <span className="clock-label label-6">6</span>
-              <span className="clock-label label-9">9</span>
-
-              <i
-                className="clock-hand hour-hand"
-                style={{
-                  transform: `translateX(-50%) rotate(${(hour % 12) * 30 + minute * 0.5}deg)`,
-                }}
-              />
-
-              <i
-                className="clock-hand minute-hand"
-                style={{
-                  transform: `translateX(-50%) rotate(${minute * 6 + second * 0.1}deg)`,
-                }}
-              />
-
-              <i
-                className="clock-hand second-hand"
-                style={{
-                  transform: `translateX(-50%) rotate(${second * 6}deg)`,
-                }}
-              />
-
-              <span className="clock-center" />
-            </div>
-          </article>
-
-          {/* WEATHER */}
-          <article className="widget weather-widget">
-            <div className="widget-heading">
-              <span>สภาพอากาศ</span>
-              <span className="heading-icon">☁</span>
-            </div>
-
-            {weather ? (
-              <>
-                <div className="weather-main">
-                  <div>
-                    <div className="temperature">
-                      {weather.temperature}°
-                    </div>
-
-                    <div className="muted-text">
-                      {weather.description}
-                    </div>
-                  </div>
-
-                  <div className="weather-icon">
-                    {weather.icon}
-                  </div>
+          {weather ? (
+            <>
+              <div className="weather-main">
+                <div className="weather-temperature">
+                  {weather.temperature}<span>°C</span>
                 </div>
-
-                <div className="weather-meta">
-                  <span>
-                    💧 ความชื้น <b>{weather.humidity}%</b>
-                  </span>
-
-                  <span>
-                    💨 ลม <b>{weather.wind} กม./ชม.</b>
-                  </span>
+                <div className="weather-description">
+                  {weather.description}
+                  <small>อุณหภูมิปัจจุบัน</small>
                 </div>
-              </>
-            ) : (
-              <div className="weather-placeholder">
-                กำลังโหลดข้อมูลอากาศ...
               </div>
-            )}
 
-            <div className="small-status">
-              {weatherStatus}
-            </div>
-          </article>
+              <div className="weather-details">
+                <div>
+                  <span>💧</span>
+                  <div><small>ความชื้น</small><b>{weather.humidity}%</b></div>
+                </div>
+                <div>
+                  <span>💨</span>
+                  <div><small>ความเร็วลม</small><b>{weather.wind} กม./ชม.</b></div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="weather-loading">กำลังโหลดสภาพอากาศ...</p>
+          )}
 
-          {/* STOPWATCH */}
-          <article className="widget stopwatch-widget">
-            <div className="widget-heading">
-              <span>นาฬิกาจับเวลา</span>
-              <span className="heading-icon">⏱</span>
-            </div>
+          <div className="weather-status">{weatherStatus}</div>
+        </section>
 
-            <div className="stopwatch-time">
-              {formatStopwatch(stopwatchMs)}
-            </div>
+        <section className="section-title">
+          <div>
+            <span className="eyebrow">YOUR TOOLS</span>
+            <h2>เครื่องมือของคุณ</h2>
+          </div>
+          <span className="section-star">✦</span>
+        </section>
 
-            <div className="button-row">
-              <button
-                className="primary-button"
-                type="button"
-                onClick={toggleStopwatch}
-              >
-                {stopwatchRunning ? "หยุด" : "เริ่ม"}
-              </button>
-
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={resetStopwatch}
-              >
-                รีเซ็ต
-              </button>
-            </div>
-          </article>
-
-          {/* CALENDAR */}
-          <article className="widget calendar-widget">
-            <div className="widget-heading">
+        <section className="tool-grid">
+          <article className="tool-card calendar-card">
+            <div className="tool-heading">
+              <span className="tool-icon">▦</span>
               <span>ปฏิทิน</span>
-              <span className="heading-icon">▦</span>
             </div>
 
-            <div className="calendar-top">
+            <div className="calendar-month">
               <strong>
                 {calendarMonth
                   ? `${MONTHS[calendarMonth.getMonth()]} ${calendarMonth.getFullYear() + 543}`
                   : ""}
               </strong>
-
               <div className="calendar-controls">
-                <button
-                  type="button"
-                  onClick={() => changeMonth(-1)}
-                  aria-label="เดือนก่อน"
-                >
-                  ‹
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => changeMonth(1)}
-                  aria-label="เดือนถัดไป"
-                >
-                  ›
-                </button>
+                <button type="button" onClick={() => changeMonth(-1)}>‹</button>
+                <button type="button" onClick={() => changeMonth(1)}>›</button>
               </div>
             </div>
 
             <div className="calendar-grid">
               {WEEKDAYS.map((day) => (
-                <span className="weekday" key={day}>
-                  {day}
-                </span>
+                <span className="weekday" key={day}>{day}</span>
               ))}
-
               {calendarCells.map((cell) => (
                 <span
-                  className={`calendar-day ${cell.muted ? "muted" : ""} ${cell.today ? "today" : ""}`}
                   key={cell.key}
+                  className={`calendar-day ${cell.muted ? "muted" : ""} ${cell.today ? "today" : ""}`}
                 >
                   {cell.day}
                 </span>
@@ -544,62 +402,120 @@ export default function HomePage() {
             </div>
           </article>
 
-          {/* DAILY PROGRESS */}
-          <article className="widget progress-widget">
-            <div className="widget-heading">
-              <span>สรุปเวลาประจำวัน</span>
-              <span className="heading-icon">✦</span>
+          <article className="tool-card stopwatch-card">
+            <div className="tool-heading">
+              <span className="tool-icon">◷</span>
+              <span>นาฬิกาจับเวลา</span>
             </div>
 
-            <div className="progress-time">
-              {pad(hour)}:{pad(minute)}:{pad(second)}
+            <div className="stopwatch-display">
+              {formatStopwatch(stopwatchMs)}
             </div>
 
-            <div className="muted-text">
-              เวลาที่ผ่านไปตั้งแต่เริ่มต้นวันนี้
+            <div className="stopwatch-caption">
+              {running ? "กำลังจับเวลา..." : "พร้อมเริ่มต้น"}
             </div>
 
-            <div className="progress-track">
-              <span style={{ width: `${dayProgress}%` }} />
-            </div>
-
-            <div className="muted-text">
-              วันนี้ผ่านไป {dayProgress.toFixed(1)}%
-            </div>
-          </article>
-
-          {/* DAILY QUOTE */}
-          <article className="widget quote-widget">
-            <div>
-              <div className="widget-heading">
-                <span>ข้อความประจำวัน</span>
-                <span className="heading-icon">✧</span>
-              </div>
-
-              <p className="quote-text">
-                เริ่มต้นจากสิ่งเล็ก ๆ แล้วค่อย ๆ
-                พัฒนาให้ดีขึ้นในทุกวัน
-              </p>
-            </div>
-
-            <div className="quote-footer">
-              HAVE A NICE DAY <span>✦</span>
+            <div className="stopwatch-actions">
+              <button
+                className="start-button"
+                type="button"
+                onClick={toggleStopwatch}
+              >
+                {running ? "หยุด" : "เริ่ม"}
+              </button>
+              <button
+                className="reset-button"
+                type="button"
+                onClick={resetStopwatch}
+              >
+                รีเซ็ต
+              </button>
             </div>
           </article>
-
         </section>
 
-        {/* FOOTER */}
-        <footer className="footer">
-          <span className="footer-line" />
-          <p>
-            MULTIMEDIA &amp; CLOCK
-            <span> · </span>
-            LUXURY DASHBOARD
-          </p>
-          <span className="footer-line" />
+        <section className="daily-card">
+          <div className="card-title">
+            <div>
+              <span className="eyebrow">DAILY OVERVIEW</span>
+              <h3>ความคืบหน้าของวันนี้</h3>
+            </div>
+            <span className="daily-icon">✧</span>
+          </div>
+
+          <div className="daily-progress-heading">
+            <strong>{progress.toFixed(1)}%</strong>
+            <span>ผ่านไปแล้ว</span>
+          </div>
+
+          <div className="progress-track">
+            <div style={{ width: `${progress}%` }} />
+          </div>
+
+          <div className="daily-times">
+            <span>00:00</span>
+            <span>24:00</span>
+          </div>
+        </section>
+
+        <section className="quote-card">
+          <span className="quote-mark">“</span>
+          <p>ทุกช่วงเวลามีคุณค่า จงใช้ทุกวันให้ดีที่สุด</p>
+          <span className="quote-en">MAKE EVERY MOMENT COUNT</span>
+        </section>
+
+        <footer className="app-footer">
+          <span>TIMELESS</span>
+          <span>DESIGNED FOR YOUR DAY ✦</span>
         </footer>
 
+        <nav className="bottom-nav">
+          <button
+            type="button"
+            className={activeTab === "home" ? "active" : ""}
+            onClick={() => setActiveTab("home")}
+          >
+            <span>⌂</span>
+            <small>หน้าหลัก</small>
+          </button>
+
+          <button
+            type="button"
+            className={activeTab === "calendar" ? "active" : ""}
+            onClick={() => {
+              setActiveTab("calendar");
+              document.getElementById("calendar-placeholder")?.scrollIntoView({ behavior: "smooth" });
+            }}
+          >
+            <span>▦</span>
+            <small>ปฏิทิน</small>
+          </button>
+
+          <button
+            type="button"
+            className={activeTab === "timer" ? "active" : ""}
+            onClick={() => {
+              setActiveTab("timer");
+              document.querySelector(".stopwatch-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }}
+          >
+            <span>◷</span>
+            <small>จับเวลา</small>
+          </button>
+
+          <button
+            type="button"
+            className={activeTab === "weather" ? "active" : ""}
+            onClick={() => {
+              setActiveTab("weather");
+              document.querySelector(".weather-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }}
+          >
+            <span>☁</span>
+            <small>อากาศ</small>
+          </button>
+        </nav>
       </div>
     </main>
   );
